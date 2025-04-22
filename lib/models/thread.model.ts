@@ -24,6 +24,7 @@ const threadSchema = new mongoose.Schema({
             ref: "Thread",
         }
     ],
+    likes: [String]
 });
 
 const Thread = mongoose.models.Thread || mongoose.model("Thread", threadSchema);
