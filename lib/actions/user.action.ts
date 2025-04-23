@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import User from "../models/user.model";
 import { connectToDB } from "../mongoose";
-import { connect } from "http2";
 import Thread from "../models/thread.model";
 import { FilterQuery, SortOrder } from "mongoose";
 
@@ -26,7 +25,7 @@ export async function updateUser({
 }: Params): Promise<void> {
   try {
     connectToDB();
-
+    
     await User.findOneAndUpdate(
       { id: userId },
       {
@@ -38,7 +37,7 @@ export async function updateUser({
       },
       { upsert: true }
     );
-
+    
     if (path === "/profile/edit") {
       revalidatePath(path);
     }
@@ -50,45 +49,47 @@ export async function updateUser({
 export async function fetchUser(userId: string) {
   try {
     connectToDB();
-
-    return await User
-    .findOne({
-      id: userId
-    })
-    // .populate({
-    //   path: 'communities',
-    //   model: 'Community'
-    // })
+    
+    const user = await User
+      .findOne({
+        id: userId
+      })
+      .lean(); // Convert to plain JS object
+      
+    // Properly serialize the user object
+    return JSON.parse(JSON.stringify(user));
   } catch (error:any) {
     throw new Error(`Failed to fetch user: ${error.message}`)
   }
 }
 
 export async function fetchUsersPosts(userId: string) {
-    try {
-      connectToDB();
-
-      const threads = await User.findOne({
-        id: userId
-      })
-      .populate({
-        path: 'threads',
+  try {
+    connectToDB();
+    
+    const threads = await User.findOne({
+      id: userId
+    })
+    .populate({
+      path: 'threads',
+      model: Thread,
+      populate: {
+        path: 'children',
         model: Thread,
         populate: {
-          path: 'children',
-          model: Thread,
-          populate: {
-            path: 'author',
-            model: User,
-            select: 'name image id'
-          }
+          path: 'author',
+          model: User,
+          select: 'name image id'
         }
-      })
-
-      return threads;
-    } catch(error: any) {
-      throw new Error(`Failed to fetch users: ${error.message}`)
-    }
+      }
+    })
+    .lean(); // Convert to plain JS object
+    
+    // Properly serialize the threads object
+    return JSON.parse(JSON.stringify(threads));
+  } catch(error: any) {
+    throw new Error(`Failed to fetch users: ${error.message}`)
+  }
 }
 
 export async function fetchUsers({
@@ -106,36 +107,40 @@ export async function fetchUsers({
 }) {
   try {
     connectToDB();
-
+    
     const skipAmount = (pageNumber - 1) * pageSize;
-
+    
     const regex = new RegExp(searchString, "i");
-
+    
     const query: FilterQuery<typeof User> = {
-      id: {$ne: userId} 
+      id: {$ne: userId}
     }
-
+    
     if(searchString.trim() !== "") {
       query.$or = [
         {username: {$regex: regex}},
         {name: {$regex: regex}}
       ]
     }
-
+    
     const sortOptions = {createdAt: sortBy};
-
+    
     const usersQuery = User.find(query)
-    .sort(sortOptions)
-    .skip(skipAmount)
-    .limit(pageSize);
-
+      .sort(sortOptions)
+      .skip(skipAmount)
+      .limit(pageSize)
+      .lean(); // Convert to plain JS objects
+    
     const totalUsersCount = await User.countDocuments(query);
-
+    
     const users = await usersQuery.exec();
-
+    
+    // Properly serialize the users array
+    const serializedUsers = JSON.parse(JSON.stringify(users));
+    
     const isNext = totalUsersCount > skipAmount + users.length;
-
-    return {users, isNext};
+    
+    return {users: serializedUsers, isNext};
   } catch (error: any) {
     throw new Error(`Failed to fetch users: ${error.message}`);
   }
@@ -144,13 +149,13 @@ export async function fetchUsers({
 export async function getActivitiy(userId: string) {
   try {
     connectToDB();
-
-    const userThreads = await Thread.find({ author: userId});
-
+    
+    const userThreads = await Thread.find({ author: userId}).lean();
+    
     const childThreadIds = userThreads.reduce((acc, userThread) => {
-      return acc.concat(userThread.children);     
+      return acc.concat(userThread.children);
     }, []);
-
+    
     const replies = await Thread.find({
       _id: { $in: childThreadIds },
       author: {$ne: userId}
@@ -160,8 +165,10 @@ export async function getActivitiy(userId: string) {
       model: User,
       select: 'name image id'
     })
-
-    return replies;
+    .lean(); // Convert to plain JS objects
+    
+    // Properly serialize the replies array
+    return JSON.parse(JSON.stringify(replies));
   } catch (error: any) {
     throw new Error(`Failed to fetch users: ${error.message}`);
   }

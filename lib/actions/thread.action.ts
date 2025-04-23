@@ -39,27 +39,35 @@ export async function fetchPosts(pageNumber = 1, pageSize = 20) {
 
   const skipAmount = (pageNumber - 1) * pageSize;
 
-  const postsQuery = Thread.find({
-    parentId: { $in: [null, undefined] }
-  })
-    .sort({ createdAt: "desc" })
-    .skip(skipAmount)
-    .limit(pageSize)
-    .populate({
-      path: "author",
-      model: User,
-      select: "_id name parentId image"
+  try {
+    const postsQuery = Thread.find({
+      parentId: { $in: [null, undefined] }
+    })
+      .sort({ createdAt: "desc" })
+      .skip(skipAmount)
+      .limit(pageSize)
+      .populate({
+        path: "author",
+        model: User,
+        select: "_id name image"
+      })
+      .lean();
+
+    const totalPostsCount = await Thread.countDocuments({
+      parentId: { $in: [null, undefined] }
     });
 
-  const totalPostsCount = await Thread.countDocuments({
-    parentId: { $in: [null, undefined] }
-  });
+    const posts = await postsQuery.exec();
 
-  const posts = await postsQuery.exec();
+    const serializedPosts = JSON.parse(JSON.stringify(posts));
+    
+    const isNext = totalPostsCount > skipAmount + posts.length;
 
-  const isNext = totalPostsCount > skipAmount + posts.length;
-
-  return { posts, isNext };
+    return { posts: serializedPosts, isNext };
+  } catch (error) {
+    console.error("Error fetching posts:", error);
+    return { posts: [], isNext: false };
+  }
 }
 
 export async function fetchThreadById(id: string) {
@@ -90,9 +98,10 @@ export async function fetchThreadById(id: string) {
             }
           }
         ]
-      }).exec();
+      })
+      .lean();
 
-    return thread;
+    return JSON.parse(JSON.stringify(thread));
   } catch (error: any) {
     throw new Error(`Failed to fetch thread: ${error.message}`);
   }
