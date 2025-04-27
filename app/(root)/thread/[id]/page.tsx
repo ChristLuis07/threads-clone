@@ -30,6 +30,7 @@ const Page = async ({ params }: { params: { id: string } }) => {
           createdAt={thread.createdAt}
           comments={thread.children}
         />
+        
       </div>
       <div className="mt-7">
         <Comment 
