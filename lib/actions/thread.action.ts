@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import Thread from "../models/thread.model";
 import User from "../models/user.model";
 import { connectToDB } from "../mongoose";
+import mongoose from "mongoose";
 
 interface Params {
   text: string,
@@ -107,35 +108,64 @@ export async function fetchThreadById(id: string) {
   }
 }
 
+
 export async function addCommentToThread(
   threadId: string,
   commentText: string,
   userId: string,
   path: string,
 ) {
-  connectToDB();
-
   try {
+    await connectToDB();
+    
+    console.log("Adding comment - Thread ID:", threadId);
+    console.log("Adding comment - User ID:", userId);
+    console.log("Adding comment - Text:", commentText);
+    
+    // Validate inputs
+    if (!threadId) throw new Error("Thread ID is required");
+    if (!userId) throw new Error("User ID is required");
+    if (!commentText.trim()) throw new Error("Comment text is required");
+    
+    // Find the original thread by ID
     const originalThread = await Thread.findById(threadId);
-
+    console.log("Original thread found:", !!originalThread);
+    
     if (!originalThread) {
       throw new Error('Thread not found');
     }
 
+    // Create a new comment thread
     const commentThread = new Thread({
       text: commentText,
       author: userId,
-      parentId: threadId,
+      parentId: threadId
     });
 
-    const saveCommentThread = await commentThread.save();
+    // Save the comment thread
+    const savedCommentThread = await commentThread.save();
+    console.log("Comment thread created with ID:", savedCommentThread._id);
 
-    originalThread.children.push(saveCommentThread._id);
+    // Initialize children array if it doesn't exist
+    if (!originalThread.children) {
+      originalThread.children = [];
+    }
 
+    // Add this comment to the original thread's children array
+    originalThread.children.push(savedCommentThread._id);
     await originalThread.save();
+    console.log("Original thread updated with new comment");
+
+    // Update the user's threads array
+    await User.findByIdAndUpdate(userId, {
+      $push: { threads: savedCommentThread._id },
+    });
+    console.log("User updated with new thread");
 
     revalidatePath(path);
+    return { success: true };
   } catch (error: any) {
+    console.error("Comment creation error details:", error);
     throw new Error(`Failed to add comment to thread: ${error.message}`);
   }
 }
