@@ -44,6 +44,7 @@ function CommunityCard({ id, name, username, imgUrl, bio, members }: Props) {
           </Button>
         </Link>
 
+
         {members.length > 0 && (
           <div className='flex items-center'>
             {members.map((member, index) => (
