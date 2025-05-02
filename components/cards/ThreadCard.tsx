@@ -207,6 +207,7 @@ const ThreadCard = ({
                     </Link>
                 )}
         </article>
+        
     )
 };
 
