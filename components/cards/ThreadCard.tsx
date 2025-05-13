@@ -181,6 +181,7 @@ const ThreadCard = ({
                                 height={24}
                                 className="cursor-pointer object-contain"
                                 />
+                                
                             </div>
                             
                             {isComment && comments.length > 0 && (
